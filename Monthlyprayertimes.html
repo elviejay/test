@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title> Monthly Prayer Timetable </title>
+<style>
+	body, tr, form {font-family: tahoma; font-size: 12px; color: #404040; text-align: center; margin: 0; padding: 0}
+	pre {font-family: courier, serif, size: 10pt; margin: 0px 8px;}
+	input {font-size: 12px;}
+	.header {background:#eef; border-bottom: 1px solid #ddd; padding: 7px;}
+	.caption {font-size: 20px; color: #d95722; text-align: center; width: 10em;}
+	.arrow {font-weight: bold; text-decoration: none; color: #3D3D3D; }
+	.arrow:hover {text-decoration: underline;}
+	.command {font-weight: bold; text-decoration: none; color: #AAAAAA; }
+	.command:hover {text-decoration: underline;}
+	.timetable {border-width: 1px; border-style: outset; border-collapse: collapse; border-color: gray; margin: 0 auto;}
+	.timetable td {border-width: 1px; border-spacing: 1px; padding: 1px; border-style: inset; border-color: #CCCCCC;}
+	.head-row {color: black; background-color: #eef;}
+	.today-row {background-color: #F8F7F4; color: black}
+	#classModal {}
+	.modal-body {overflow-x: auto;}
+
+</style>
+</head>
+<h1><b>Monthly Prayer Timetable:</b></h1>
+<body>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script type="text/javascript" src="https://rawgit.com/elviejay/test/master/prayertimes.js"></script>
+
+    <!div class="header">
+
+    <div class="container">
+        <h2 id="text-center">Enter Postcode: </h2>
+        <form id="location-form">
+            <input type="text" id="location-input">
+            <button type="submit" class="btn btn-success">Submit</button><p></p>
+        </form>
+        <div class="card-block" id="formatted-address"></div>
+        <div class="card-block" id="address-components"></div>
+        <div class="card-block" id="geometry"></div>
+        <div class="transparent-background">
+        </div>
+
+        <form class="form" action="javascript:update();">
+            Latitude: <input type="text" value="51.51" id="latitude" size="2" onchange="update();" />&nbsp;
+            Longitude: <input type="text" value="-0.15" id="longitude" size="2" onchange="update();" />&nbsp;
+            Time Zone: <input type="text" value="0" id="timezone" size="2" onchange="update();" />&nbsp;
+            DST:
+            <select id="dst" size="1" style="font-size: 12px;" onchange="update()">
+                <option value="auto" selected="selected">Auto</option>
+            </select>&nbsp;
+
+            <select id="method" size="1" style="visibility: hidden" onchange="update()">
+                <option value="Jafari" selected="selected"/option>
+            </select>
+        </form>
+    </div>
+    <br />
+    <div id="printablearea">
+        <table align="center">
+            <tr>
+                <td><a href="javascript:displayMonth(-1)" class="arrow">&lt;&lt;</a></td>
+                <td id="table-title" class="caption"></td>
+                <td><a href="javascript:displayMonth(+1)" class="arrow">&gt;&gt;</a></td>
+            </tr>
+        </table>
+
+        <br />
+
+        <table id="timetable" class="timetable" align="center">
+            <tbody></tbody>
+        </table>
+
+        <br />
+    </div>
+
+    <input type="button" class="btn btn-success" onclick="printDiv('printablearea')" value="Printme" />
+
+    <div align="center" style="margin-top: 7px">
+        Source: <a href="yourjavascript.com/02268412701/time.js" class="command">PrayTimes.org</a> |
+        Time Format: <a id="time-format" href="javascript:switchFormat(1)" title="Change clock format" class="command"></a>
+    </div>
+    <br />
+
+
+    <script type="text/javascript">
+        var currentDate = new Date();
+        var timeFormat = 0;
+        switchFormat(0);
+
+        // display monthly timetable
+        function displayMonth(offset) {
+            var lat = $('latitude').value;
+            var lng = $('longitude').value;
+
+            var timeZone = $('timezone').value;
+            var method = $('method').value;
+            var dst = $('dst').value;
+
+            prayTimes.setMethod(method);
+            currentDate.setMonth(currentDate.getMonth() + 1 * offset);
+            var month = currentDate.getMonth();
+            var year = currentDate.getFullYear();
+            var title = monthFullName(month) + ' ' + year;
+            $('table-title').innerHTML = title;
+            prayTimes.adjust({ Fajr: 12, maghrib: '15 min', midnight: 'Jafari' });
+            makeTable(year, month, lat, lng, timeZone, dst);
+        }
+
+        // make monthly timetable
+        function makeTable(year, month, lat, lng, timeZone, dst) {
+            var items = {
+                day: 'Day', imsak: 'Imsak', fajr: 'Fajr', sunrise: 'Sunrise',
+                dhuhr: 'Dhuhr', sunset: 'Sunset', // sunset: 'Sunset',
+                maghrib: 'Maghrib', isha: 'Isha', midnight: 'Midnight'
+            };
+
+            var tbody = document.createElement('tbody');
+            tbody.appendChild(makeTableRow(items, items, 'head-row'));
+
+            var date = new Date(year, month, 1);
+            var endDate = new Date(year, month + 1, 1);
+            var format = timeFormat ? '12hNS' : '24h';
+
+            while (date < endDate) {
+                var times = prayTimes.getTimes(date, [lat, lng], timeZone, dst, format);
+                times.day = date.getDate();
+                var today = new Date();
+                var isToday = (date.getMonth() == today.getMonth()) && (date.getDate() == today.getDate());
+                var klass = isToday ? 'today-row' : '';
+                tbody.appendChild(makeTableRow(times, items, klass));
+                date.setDate(date.getDate() + 1);  // next day
+            }
+            removeAllChild($('timetable'));
+            $('timetable').appendChild(tbody);
+        }
+
+        // make a table row
+        function makeTableRow(data, items, klass) {
+            var row = document.createElement('tr');
+            for (var i in items) {
+                var cell = document.createElement('td');
+                cell.innerHTML = data[i];
+                cell.style.width = i == 'day' ? '2.5em' : '3.7em';
+                row.appendChild(cell);
+            }
+            row.className = klass;
+            return row;
+        }
+
+        // remove all children of a node
+        function removeAllChild(node) {
+            if (node == undefined || node == null)
+                return;
+
+            while (node.firstChild)
+                node.removeChild(node.firstChild);
+        }
+
+        // switch time format
+        function switchFormat(offset) {
+            var formats = ['24-hour', '12-hour'];
+            timeFormat = (timeFormat + offset) % 2;
+            $('time-format').innerHTML = formats[timeFormat];
+            update();
+        }
+
+        // update table
+        function update() {
+            displayMonth(0);
+        }
+
+        // return month full name
+        function monthFullName(month) {
+            var monthName = new Array('January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December');
+            return monthName[month];
+        }
+
+		function printDiv(printablearea) {
+			var printContents = document.getElementById(printablearea).innerHTML;
+			var originalContents = document.body.innerHTML;
+			document.body.innerHTML = printContents;
+			window.print();
+			document.body.innerHTML = originalContents;
+}
+
+
+        function $(id) {
+            return document.getElementById(id);
+        }
+
+
+    </script>
+
+
+    <script>
+        // Call Geocode
+        //geocode();
+
+        // Get location form
+        var locationForm = document.getElementById('location-form');
+
+        // Listen for submiot
+        locationForm.addEventListener('submit', geocode);
+
+        function geocode(e) {
+            // Prevent actual submit
+            e.preventDefault();
+
+            var location = document.getElementById('location-input').value;
+
+            axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+                params: {
+                    address: location,
+                    key: '	AIzaSyA0mFpBPOQGgGOAVVjQST9w-fKgaPbB38k'
+                }
+            })
+                .then(function (response) {
+                    // Log full response
+                    console.log(response);
+
+                    // Address Components
+                    var addressComponents = response.data.results[0].address_components;
+                    var addressComponentsOutput = '<ul class="list-group">';
+                    for (var i = 0; i < addressComponents.length; i++) {
+                        addressComponentsOutput += `
+                    <li class="list-group-item"><strong>${addressComponents[i].types[0]}</strong>: ${addressComponents[i].long_name}</li>
+                  `;
+                    }
+                    addressComponentsOutput += '</ul>';
+
+                    // Geometry
+                    var lat1 = response.data.results[0].geometry.location.lat;
+                    var lng1 = response.data.results[0].geometry.location.lng;
+                    document.getElementById("latitude").value = lat1;
+                    document.getElementById("longitude").value = lng1;
+
+                    var geometryOutput = `
+                  <ul class="list-group">
+                    <li class="list-group-item" ><strong>Latitude</strong>: ${lat1}</li>
+                    <li class="list-group-item" ><strong>Longitude</strong>: ${lng1}</li>
+                  </ul>
+                `;
+
+                // Output to app
+               <!--document.getElementById('geometry').innerHTML = geometryOutput; -->
+                        update();
+
+                })
+                .catch(function (error) {
+                    console.log(error);
+                });
+        }
+    </script>
+
+</body>
+</html>
